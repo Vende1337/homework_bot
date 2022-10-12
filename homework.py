@@ -53,7 +53,7 @@ def get_api_answer(current_timestamp):
         ENDPOINT, headers=HEADERS, params=params)
     try:
         homework_statuses
-    except:
+    except Exception:
         logger.error('СбоЙ при запросе к эндпоинту')
     if homework_statuses.status_code != HTTPStatus.OK:
         logger.error('Нету доступа к Эндпоинту')
@@ -68,7 +68,7 @@ def check_response(response):
     if 'homeworks' not in response:
         raise KeyError('В ответе API отсутствует домашняя работа')
     try:
-        homework = response.get('homeworks')[0]
+        response.get('homeworks')[0]
     except IndexError:
         logger.debug('Отсутствие в ответе новых статусов')
         return None
@@ -79,15 +79,15 @@ def parse_status(homework):
     try:
         homework_name = homework.get('homework_name')
         homework_status = homework.get('status')
-    except:
+    except Exception:
         logger.error('Отсутствие ожидаемых ключей в ответе API')
         raise KeyError
     else:
         try:
             verdict = HOMEWORK_STATUSES[homework_status]
-        except:
+        except Exception:
             logger.error(
-                'Недокументированный статус домашней работы, обнаруженный в ответе API')
+                'Недокументированный статус домашней работы')
         return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
