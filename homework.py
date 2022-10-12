@@ -39,6 +39,12 @@ HOMEWORK_STATUSES = {
 
 
 def send_message(bot, message):
+    """
+    Отправляет сообщение в Telegram чат.
+    определяемый переменной окружения TELEGRAM_CHAT_ID.
+    Принимает на вход два параметра:
+    экземпляр класса Bot и строку с текстом сообщения.
+    """
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.info('Сообщение отправлено')
@@ -47,6 +53,12 @@ def send_message(bot, message):
 
 
 def get_api_answer(current_timestamp):
+    """
+    Делает запрос к единственному эндпоинту API-сервиса.
+    В качестве параметра функция получает временную метку.
+    В случае успешного запроса должна вернуть ответ API,
+    преобразовав его из формата JSON к типам данных Python.
+    """
     timestamp = current_timestamp
     params = {'from_date': timestamp}
     homework_statuses = requests.get(
@@ -62,6 +74,14 @@ def get_api_answer(current_timestamp):
 
 
 def check_response(response):
+    """
+    Проверяет ответ API на корректность.
+    В качестве параметра функция получает ответ API,
+    приведенный к типам данных Python.
+    Если ответ API соответствует ожиданиям,
+    то функция должна вернуть список домашних работ
+    (он может быть и пустым), доступный в ответе API по ключу 'homeworks'.
+    """
     print(response)
     if type(response) is not dict:
         raise TypeError('Ответ API не является словарем')
@@ -76,6 +96,12 @@ def check_response(response):
 
 
 def parse_status(homework):
+    """
+    Проверяет доступность переменных окружeния.
+        которые необходимы для работы программы.
+        Если отсутствует хотя бы одна переменная окружения
+        — функция должна вернуть False, иначе — True.
+    """
     try:
         homework_name = homework.get('homework_name')
         homework_status = homework.get('status')
