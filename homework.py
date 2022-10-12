@@ -92,6 +92,10 @@ def parse_status(homework):
 
 
 def check_tokens():
+    """ Проверяет доступность переменных окружeния,
+        которые необходимы для работы программы.
+        Если отсутствует хотя бы одна переменная окружения
+        — функция должна вернуть False, иначе — True."""
     if all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]):
         logger.debug('Токены доступны')
         return True
