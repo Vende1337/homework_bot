@@ -98,7 +98,8 @@ def parse_status(homework):
             raise KeyError('Отсутствие ожидаемого ключа в ответе API')
         else:
             verdict = VERDICTS[homework_status]
-            return f'Изменился статус работы "{homework_name}". {verdict}'
+            return (f'Изменился статус проверки работы "{homework_name}".'
+                    f'{verdict}')
     elif homework == []:
         logger.debug('Список домашних работ пуст')
     else:
@@ -111,7 +112,8 @@ def parse_status(homework):
             raise KeyError('Отсутствие ожидаемого ключа в ответе API')
         else:
             verdict = VERDICTS[homework_status]
-            return f'Изменился статус работы "{homework_name}". {verdict}'
+            return (f'Изменился статус проверки работы "{homework_name}".'
+                    f'{verdict}')
 
 
 def check_tokens():
