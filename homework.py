@@ -2,9 +2,9 @@ from http import HTTPStatus
 import logging
 import os
 import time
-import requests
 import sys
 
+import requests
 from telegram import Bot
 from dotenv import load_dotenv
 
@@ -12,10 +12,11 @@ load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
-    filename='main.log',
     filemode='w',
+    filename='main.log',
     format='%(asctime)s, %(levelname)s, %(name)s, %(message)s'
 )
+logging.FileHandler(filename='programm.log', encoding='UTF-8')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 handler = logging.StreamHandler(sys.stdout)
@@ -47,9 +48,10 @@ def send_message(bot, message):
     """
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
+    except TelegramError:
+        print(f'Сбой при отправке сообщения')
+    else:
         logger.info('Сообщение отправлено')
-    except Exception as error:
-        logger.error(error, exc_info=True)
 
 
 def get_api_answer(current_timestamp):
@@ -59,18 +61,15 @@ def get_api_answer(current_timestamp):
     В случае успешного запроса должна вернуть ответ API,
     преобразовав его из формата JSON к типам данных Python.
     """
-    timestamp = current_timestamp
-    params = {'from_date': timestamp}
+    params = {'from_date': current_timestamp}
     homework_statuses = requests.get(
         ENDPOINT, headers=HEADERS, params=params)
-    try:
-        homework_statuses
-    except Exception:
-        logger.error('СбоЙ при запросе к эндпоинту')
     if homework_statuses.status_code != HTTPStatus.OK:
-        logger.error('Нету доступа к Эндпоинту')
-        raise Exception
-    return homework_statuses.json()
+        raise requests.RequestException('Нет доступа к Эндпоинту')
+    try:
+        return homework_statuses.json()
+    except requests.exceptions.JSONDecodeError('Сбой декодирования JSON'):
+        raise requests.exceptions.JSONDecodeError('Сбой декодирования JSON')
 
 
 def check_response(response):
@@ -83,15 +82,13 @@ def check_response(response):
     (он может быть и пустым), доступный в ответе API по ключу 'homeworks'.
     """
     print(response)
-    if type(response) is not dict:
+    if not isinstance(response, dict):
         raise TypeError('Ответ API не является словарем')
     if 'homeworks' not in response:
         raise KeyError('В ответе API отсутствует домашняя работа')
-    try:
-        response.get('homeworks')[0]
-    except IndexError:
-        logger.debug('Отсутствие в ответе новых статусов')
-        return None
+
+    if not isinstance(response['homeworks'], list):
+        raise TypeError('Ответ API не является списком')
     return response.get('homeworks')[0]
 
 
@@ -102,18 +99,15 @@ def parse_status(homework):
         Если отсутствует хотя бы одна переменная окружения
         — функция должна вернуть False, иначе — True.
     """
-    try:
-        homework_name = homework.get('homework_name')
-        homework_status = homework.get('status')
-    except Exception:
-        logger.error('Отсутствие ожидаемых ключей в ответе API')
-        raise KeyError
+
+    homework_name = homework.get('homework_name')
+    homework_status = homework.get('status')
+    if 'status' not in homework:
+        raise KeyError('Отсутствие ожидаемого ключа в ответе API')
+    elif 'homework_name' not in homework:
+        raise KeyError('Отсутствие ожидаемого ключа в ответе API')        
     else:
-        try:
-            verdict = HOMEWORK_STATUSES[homework_status]
-        except Exception:
-            logger.error(
-                'Недокументированный статус домашней работы')
+        verdict = HOMEWORK_STATUSES[homework_status]   
         return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
@@ -136,7 +130,7 @@ def main():
     """Основная логика работы бота."""
     check_tokens()
     bot = Bot(token=TELEGRAM_TOKEN)
-    current_timestamp = int(time.time())
+    current_timestamp = 0
     while True:
         try:
             response = get_api_answer(current_timestamp)
@@ -158,3 +152,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+#int(time.time())
