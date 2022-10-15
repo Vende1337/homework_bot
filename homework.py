@@ -10,18 +10,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-logging.basicConfig(
-    level=logging.INFO,
-    filemode='w',
-    filename='main.log',
-    format='%(asctime)s, %(levelname)s, %(name)s, %(message)s'
-)
-logging.FileHandler(filename='programm.log', encoding='UTF-8')
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-handler = logging.StreamHandler(sys.stdout)
-logger.addHandler(handler)
-
 
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -32,7 +21,7 @@ ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
 
-HOMEWORK_STATUSES = {
+VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
@@ -48,8 +37,8 @@ def send_message(bot, message):
     """
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
-    except TelegramError:
-        print(f'Сбой при отправке сообщения')
+    except Exception:
+        raise Exception('Сбой при отправке сообщения')
     else:
         logger.info('Сообщение отправлено')
 
@@ -81,34 +70,48 @@ def check_response(response):
     то функция должна вернуть список домашних работ
     (он может быть и пустым), доступный в ответе API по ключу 'homeworks'.
     """
-    print(response)
     if not isinstance(response, dict):
         raise TypeError('Ответ API не является словарем')
-    if 'homeworks' not in response:
+    elif 'homeworks' not in response:
         raise KeyError('В ответе API отсутствует домашняя работа')
-
-    if not isinstance(response['homeworks'], list):
+    elif not isinstance(response.get('homeworks'), list):
         raise TypeError('Ответ API не является списком')
-    return response.get('homeworks')[0]
+    else:
+        return response.get('homeworks')
 
 
 def parse_status(homework):
     """
-    Проверяет доступность переменных окружeния.
-        которые необходимы для работы программы.
-        Если отсутствует хотя бы одна переменная окружения
-        — функция должна вернуть False, иначе — True.
+    Извлекает из информации о конкретной домашней работе статус этой работы.
+    В качестве параметра функция получает только
+    один элемент из списка домашних работ.
+    В случае успеха, функция возвращает подготовленную
+    для отправки в Telegram строку,
+    содержащую один из вердиктов словаря HOMEWORK_STATUSES.
     """
-
-    homework_name = homework.get('homework_name')
-    homework_status = homework.get('status')
-    if 'status' not in homework:
-        raise KeyError('Отсутствие ожидаемого ключа в ответе API')
-    elif 'homework_name' not in homework:
-        raise KeyError('Отсутствие ожидаемого ключа в ответе API')        
+    if type(homework) == dict:
+        homework_name = homework.get('homework_name')
+        homework_status = homework.get('status')
+        if 'status' not in homework:
+            raise KeyError('Отсутствие ожидаемого ключа в ответе API')
+        elif 'homework_name' not in homework:
+            raise KeyError('Отсутствие ожидаемого ключа в ответе API')
+        else:
+            verdict = VERDICTS[homework_status]
+            return f'Изменился статус работы "{homework_name}". {verdict}'
+    elif homework == []:
+        logger.debug('Список домашних работ пуст')
     else:
-        verdict = HOMEWORK_STATUSES[homework_status]   
-        return f'Изменился статус проверки работы "{homework_name}". {verdict}'
+        last_homework = homework[0]
+        homework_name = last_homework.get('homework_name')
+        homework_status = last_homework.get('status')
+        if 'status' not in last_homework:
+            raise KeyError('Отсутствие ожидаемого ключа в ответе API')
+        elif 'homework_name' not in last_homework:
+            raise KeyError('Отсутствие ожидаемого ключа в ответе API')
+        else:
+            verdict = VERDICTS[homework_status]
+            return f'Изменился статус работы "{homework_name}". {verdict}'
 
 
 def check_tokens():
@@ -119,37 +122,40 @@ def check_tokens():
         — функция должна вернуть False, иначе — True.
     """
     if all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]):
-        logger.debug('Токены доступны')
         return True
     else:
-        logger.critical('Токены недоступны')
         return False
 
 
 def main():
     """Основная логика работы бота."""
-    check_tokens()
+    if check_tokens() is False:
+        logger.critical('Токены недоступны')
+        sys.exit('Токены недоступны')
+    else:
+        logger.debug('Токены доступны')
     bot = Bot(token=TELEGRAM_TOKEN)
-    current_timestamp = 0
+    current_timestamp = int(time.time())
+    new_current_timestamp = get_api_answer(
+        current_timestamp).get('current_date')
     while True:
         try:
-            response = get_api_answer(current_timestamp)
+            response = get_api_answer(new_current_timestamp)
             homework_answer = check_response(response)
-            string = parse_status(homework_answer)
-            message = send_message(bot, string)
-            time.sleep(RETRY_TIME)
+            message = parse_status(homework_answer)
+            send_message(bot, message)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logger.error(message)
-            time.sleep(RETRY_TIME)
-        else:
-            response = get_api_answer(current_timestamp)
-            homework_answer = check_response(response)
-            string = parse_status(homework_answer)
-            message = send_message(bot, string)
+        finally:
             time.sleep(RETRY_TIME)
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s,%(levelname)s,%(message)s,%(funcName)s,%(lineno)d',
+        handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler(
+            filename='C:\\Dev1\\homework_bot\\main.log', mode='w',
+            encoding='UTF-8')])
     main()
-#int(time.time())
