@@ -3,10 +3,12 @@ import logging
 import os
 import time
 import sys
+import urllib.error
 
 import requests
-from telegram import Bot
+from telegram import Bot, error
 from dotenv import load_dotenv
+
 
 load_dotenv()
 
@@ -37,8 +39,9 @@ def send_message(bot, message):
     """
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
-    except Exception:
-        raise Exception('Сбой при отправке сообщения')
+    except error.BadRequest:
+        raise error.BadRequest(
+            'Сбой при отправке сообщения, текст сообщения пуст.')
     else:
         logger.info('Сообщение отправлено')
 
@@ -51,10 +54,13 @@ def get_api_answer(current_timestamp):
     преобразовав его из формата JSON к типам данных Python.
     """
     params = {'from_date': current_timestamp}
-    homework_statuses = requests.get(
-        ENDPOINT, headers=HEADERS, params=params)
+    try:
+        homework_statuses = requests.get(
+            ENDPOINT, headers=HEADERS, params=params)
+    except ConnectionError:
+        raise ConnectionError('Нет доступа к Эндпоинту')
     if homework_statuses.status_code != HTTPStatus.OK:
-        raise requests.RequestException('Нет доступа к Эндпоинту')
+        raise urllib.error.HTTPError('Сбои при запросе к эндпоинту')
     try:
         return homework_statuses.json()
     except requests.exceptions.JSONDecodeError('Сбой декодирования JSON'):
@@ -70,14 +76,15 @@ def check_response(response):
     то функция должна вернуть список домашних работ
     (он может быть и пустым), доступный в ответе API по ключу 'homeworks'.
     """
+    if 'current_date' not in response:
+        raise KeyError('В ответе API отсутствует текущее время')
     if not isinstance(response, dict):
         raise TypeError('Ответ API не является словарем')
-    elif 'homeworks' not in response:
+    if 'homeworks' not in response:
         raise KeyError('В ответе API отсутствует домашняя работа')
-    elif not isinstance(response.get('homeworks'), list):
+    if not isinstance(response.get('homeworks'), list):
         raise TypeError('Ответ API не является списком')
-    else:
-        return response.get('homeworks')
+    return response.get('homeworks')
 
 
 def parse_status(homework):
