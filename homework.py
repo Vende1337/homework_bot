@@ -4,6 +4,7 @@ import os
 import time
 import sys
 import urllib.error
+import json
 
 import requests
 from telegram import Bot, error
@@ -63,8 +64,8 @@ def get_api_answer(current_timestamp):
         raise urllib.error.HTTPError('Сбои при запросе к эндпоинту')
     try:
         return homework_statuses.json()
-    except requests.exceptions.JSONDecodeError('Сбой декодирования JSON'):
-        raise requests.exceptions.JSONDecodeError('Сбой декодирования JSON')
+    except json.JSONDecodeError('Сбой декодирования JSON'):
+        raise json.JSONDecodeError('Сбой декодирования JSON')
 
 
 def check_response(response):
@@ -76,14 +77,14 @@ def check_response(response):
     то функция должна вернуть список домашних работ
     (он может быть и пустым), доступный в ответе API по ключу 'homeworks'.
     """
-    if 'current_date' not in response:
-        raise KeyError('В ответе API отсутствует текущее время')
     if not isinstance(response, dict):
         raise TypeError('Ответ API не является словарем')
     if 'homeworks' not in response:
         raise KeyError('В ответе API отсутствует домашняя работа')
     if not isinstance(response.get('homeworks'), list):
         raise TypeError('Ответ API не является списком')
+    if 'current_date' not in response:
+        raise KeyError('В ответе API отсутствует текущее время')
     return response.get('homeworks')
 
 
@@ -96,31 +97,24 @@ def parse_status(homework):
     для отправки в Telegram строку,
     содержащую один из вердиктов словаря HOMEWORK_STATUSES.
     """
-    if type(homework) == dict:
-        homework_name = homework.get('homework_name')
-        homework_status = homework.get('status')
-        if 'status' not in homework:
-            raise KeyError('Отсутствие ожидаемого ключа в ответе API')
-        elif 'homework_name' not in homework:
-            raise KeyError('Отсутствие ожидаемого ключа в ответе API')
-        else:
-            verdict = VERDICTS[homework_status]
-            return (f'Изменился статус проверки работы "{homework_name}".'
-                    f'{verdict}')
-    elif homework == []:
+    if homework == []:
         logger.debug('Список домашних работ пуст')
+        return ''
+    if isinstance(homework, dict):
+        last_homework = homework
+        homework_name = last_homework.get('homework_name')
+        homework_status = last_homework.get('status')
     else:
         last_homework = homework[0]
         homework_name = last_homework.get('homework_name')
         homework_status = last_homework.get('status')
-        if 'status' not in last_homework:
-            raise KeyError('Отсутствие ожидаемого ключа в ответе API')
-        elif 'homework_name' not in last_homework:
-            raise KeyError('Отсутствие ожидаемого ключа в ответе API')
-        else:
-            verdict = VERDICTS[homework_status]
-            return (f'Изменился статус проверки работы "{homework_name}".'
-                    f'{verdict}')
+    if 'status' not in last_homework:
+        raise KeyError('Отсутствие ожидаемого ключа в ответе API')
+    if 'homework_name' not in last_homework:
+        raise KeyError('Отсутствие ожидаемого ключа в ответе API')
+    verdict = VERDICTS[homework_status]
+    return (f'Изменился статус проверки работы "{homework_name}".'
+            f'{verdict}')
 
 
 def check_tokens():
@@ -132,8 +126,6 @@ def check_tokens():
     """
     if all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]):
         return True
-    else:
-        return False
 
 
 def main():
@@ -141,20 +133,19 @@ def main():
     if check_tokens() is False:
         logger.critical('Токены недоступны')
         sys.exit('Токены недоступны')
-    else:
-        logger.debug('Токены доступны')
     bot = Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
-    new_current_timestamp = get_api_answer(
-        current_timestamp).get('current_date')
     while True:
         try:
+            new_current_timestamp = get_api_answer(
+                current_timestamp).get('current_date')
             response = get_api_answer(new_current_timestamp)
             homework_answer = check_response(response)
             message = parse_status(homework_answer)
             send_message(bot, message)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
+            send_message(bot, message)
             logger.error(message)
         finally:
             time.sleep(RETRY_TIME)
@@ -165,6 +156,7 @@ if __name__ == '__main__':
         level=logging.INFO,
         format='%(asctime)s,%(levelname)s,%(message)s,%(funcName)s,%(lineno)d',
         handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler(
-            filename='C:\\Dev1\\homework_bot\\main.log', mode='w',
+            filename='os.path.dirname(os.path.abspath(__file__))',
+            mode='w',
             encoding='UTF-8')])
     main()
