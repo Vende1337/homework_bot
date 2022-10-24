@@ -105,12 +105,12 @@ def parse_status(homework):
         raise KeyError('Отсутствие ожидаемого ключа в ответе API')
     if 'homework_name' not in homework:
         raise KeyError('Отсутствие ожидаемого ключа в ответе API')
-    if 'homework_status' in VERDICTS:
+    if homework_status not in VERDICTS:
+        raise KeyError('Недокументированный статус домашней работы')
+    else:
         verdict = VERDICTS[homework_status]
         return (f'Изменился статус проверки работы "{homework_name}".'
                 f'{verdict}')
-    else:
-        raise KeyError('Недокументированный статус домашней работы')
 
 
 def check_tokens():
