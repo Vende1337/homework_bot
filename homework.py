@@ -5,11 +5,10 @@ import time
 import sys
 
 from exceptions import (NotSendingError, SendMessageError,
-                        RequestAPIError, HTTPError, JSONDecodeError
-                        )
+                        RequestAPIError, HTTPError, CurrentTimeError)
 
 import requests
-from telegram import Bot
+from telegram import Bot, TelegramError
 from dotenv import load_dotenv
 
 
@@ -42,9 +41,9 @@ def send_message(bot, message):
     """
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
-    except SendMessageError:
+    except TelegramError as error:
         raise SendMessageError(
-            'Сбой при отправке сообщения, текст сообщения пуст.')
+            f'Сбой при отправке сообщения.{error}')
     else:
         logger.info('Сообщение отправлено')
 
@@ -60,15 +59,13 @@ def get_api_answer(current_timestamp):
     try:
         homework_statuses = requests.get(
             ENDPOINT, headers=HEADERS, params=params)
-    except RequestAPIError:
-        raise RequestAPIError(
-            'Ошибка при запросе к Эндпоинту, сторонний сервис недоступен')
-    if homework_statuses.status_code != HTTPStatus.OK:
-        raise HTTPError('Сбои при запросе к эндпоинту')
-    try:
+        if homework_statuses.status_code != HTTPStatus.OK:
+            raise HTTPError(
+                f'Сбои при запросе к эндпоинту{homework_statuses.status_code}')
         return homework_statuses.json()
-    except JSONDecodeError:
-        raise JSONDecodeError('Сбой декодирования JSON')
+    except Exception as error:
+        raise RequestAPIError(
+            f'Ошибка при запросе к Эндпоинту:{error}')
 
 
 def check_response(response):
@@ -87,7 +84,7 @@ def check_response(response):
     if not isinstance(response.get('homeworks'), list):
         raise TypeError('Ответ API не является списком')
     if 'current_date' not in response:
-        logger.error('В ответе API отсутствует текущее время')
+        raise CurrentTimeError('В ответе API отсутствует текущее время')
     if not isinstance(response.get('current_date'), int):
         raise TypeError('current_date не является целым числом')
     return response.get('homeworks')
@@ -108,12 +105,12 @@ def parse_status(homework):
         raise KeyError('Отсутствие ожидаемого ключа в ответе API')
     if 'homework_name' not in homework:
         raise KeyError('Отсутствие ожидаемого ключа в ответе API')
-    try:
+    if 'homework_status' in VERDICTS:
         verdict = VERDICTS[homework_status]
-    except KeyError:
+        return (f'Изменился статус проверки работы "{homework_name}".'
+                f'{verdict}')
+    else:
         raise KeyError('Недокументированный статус домашней работы')
-    return (f'Изменился статус проверки работы "{homework_name}".'
-            f'{verdict}')
 
 
 def check_tokens():

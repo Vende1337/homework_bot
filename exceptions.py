@@ -10,7 +10,11 @@ class RequestAPIError(Exception):
     pass
 
 
-class HTTPError(NotSendingError):
+class HTTPError(Exception):
+    pass
+
+
+class CurrentTimeError(NotSendingError):
     pass
 
 
