@@ -63,7 +63,7 @@ def get_api_answer(current_timestamp):
             raise HTTPError(
                 f'Сбои при запросе к эндпоинту{homework_statuses.status_code}')
         return homework_statuses.json()
-    except Exception as error:
+    except requests.RequestException as error:
         raise RequestAPIError(
             f'Ошибка при запросе к Эндпоинту:{error}')
 
@@ -86,7 +86,7 @@ def check_response(response):
     if 'current_date' not in response:
         raise CurrentTimeError('В ответе API отсутствует текущее время')
     if not isinstance(response.get('current_date'), int):
-        raise TypeError('current_date не является целым числом')
+        raise CurrentTimeError('current_date не является целым числом')
     return response.get('homeworks')
 
 
@@ -107,10 +107,9 @@ def parse_status(homework):
         raise KeyError('Отсутствие ожидаемого ключа в ответе API')
     if homework_status not in VERDICTS:
         raise KeyError('Недокументированный статус домашней работы')
-    else:
-        verdict = VERDICTS[homework_status]
-        return (f'Изменился статус проверки работы "{homework_name}".'
-                f'{verdict}')
+    verdict = VERDICTS[homework_status]
+    return (f'Изменился статус проверки работы "{homework_name}".'
+            f'{verdict}')
 
 
 def check_tokens():
@@ -132,19 +131,19 @@ def main():
     current_timestamp = int(time.time())
     while True:
         try:
-            new_current_timestamp = get_api_answer(
-                current_timestamp).get('current_date')
-            if new_current_timestamp is None:
+            if get_api_answer(
+                    current_timestamp).get('current_date') is None:
                 response = get_api_answer(current_timestamp)
             else:
-                response = get_api_answer(new_current_timestamp)
+                response = get_api_answer(get_api_answer(
+                    current_timestamp).get('current_date'))
             homework_answer = check_response(response)
-            if homework_answer != []:
+            if len(homework_answer) == 0:
+                logger.error('Отсутствуют новые статусы домашки')
+            else:
                 message = parse_status(homework_answer[0])
                 send_message(bot, message)
-            else:
-                logger.error('Отсутствуют новые статусы домашки')
-        except NotSendingError as error:
+        except NotSendingError or TelegramError as error:
             message = f'Сбой в работе программы: {error}'
             logger.error(message)
         except Exception as error:
@@ -160,7 +159,7 @@ if __name__ == '__main__':
         level=logging.INFO,
         format='%(asctime)s,%(levelname)s,%(message)s,%(funcName)s,%(lineno)d',
         handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler(
-            filename='os.path.dirname(os.path.abspath(__file__))',
+            filename=os.path.join('main.log'),
             mode='w',
             encoding='UTF-8')])
     main()
