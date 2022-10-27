@@ -4,12 +4,12 @@ import os
 import time
 import sys
 
-from exceptions import (NotSendingError, SendMessageError,
-                        RequestAPIError, HTTPError, CurrentTimeError)
-
 import requests
 from telegram import Bot, TelegramError
 from dotenv import load_dotenv
+
+from exceptions import (NotSendingError, SendMessageError,
+                        RequestAPIError, HTTPError, CurrentTimeError)
 
 
 load_dotenv()
@@ -131,24 +131,24 @@ def main():
     current_timestamp = int(time.time())
     while True:
         try:
-            if get_api_answer(
-                    current_timestamp).get('current_date') is None:
-                response = get_api_answer(current_timestamp)
-            else:
-                response = get_api_answer(get_api_answer(
-                    current_timestamp).get('current_date'))
+            response = get_api_answer(current_timestamp)
             homework_answer = check_response(response)
+            current_timestamp = response.get('current_date')
             if len(homework_answer) == 0:
                 logger.error('Отсутствуют новые статусы домашки')
             else:
                 message = parse_status(homework_answer[0])
                 send_message(bot, message)
-        except NotSendingError or TelegramError as error:
+        except NotSendingError as error:
             message = f'Сбой в работе программы: {error}'
             logger.error(message)
         except Exception as error:
-            message = f'Сбой в работе программы1: {error}'
-            send_message(bot, message)
+            message = f'Сбой в работе программы: {error}'
+            try:
+                send_message(bot, message)
+            except SendMessageError as error:
+                logger.error(
+                    f'Не удалось отправить сообщение об ошибке:{error}')
             logger.error(message)
         finally:
             time.sleep(RETRY_TIME)
