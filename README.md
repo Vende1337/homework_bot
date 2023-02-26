@@ -25,5 +25,10 @@
       python manage.py runserver
     </blockquote>
 </li>
+<i><b>Технологии</i></b>
+<blockquote>
+☑ Python 3.7.0 <br>
+☑ Django REST framework
+</blockquote>
 Авторы:
 <b>Дмитрий Венде</b><br>
